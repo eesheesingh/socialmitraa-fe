@@ -8,7 +8,7 @@ import { LogIn, ArrowLeft, Loader2 } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading, refresh } = useAuth();
+  const { isAuthenticated, isLoading, refresh, dashboardPath } = useAuth();
 
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
@@ -18,7 +18,7 @@ export default function Login() {
 
   const onAuthSuccess = async () => {
     await refresh();
-    navigate("/onboarding");
+    navigate(dashboardPath);
   };
 
   const loginMut = useMutation({
@@ -35,8 +35,8 @@ export default function Login() {
   const pending = loginMut.isPending || registerMut.isPending;
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) navigate("/onboarding");
-  }, [isLoading, isAuthenticated, navigate]);
+    if (!isLoading && isAuthenticated) navigate(dashboardPath);
+  }, [isLoading, isAuthenticated, navigate, dashboardPath]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

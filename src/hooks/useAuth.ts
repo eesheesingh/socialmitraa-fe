@@ -36,10 +36,10 @@ export function useAuth() {
 
   const dashboardPath = useMemo(() => {
     if (isAdmin) return "/admin/dashboard";
-    if (isBrand) return "/brand/dashboard";
-    if (isInfluencer) return "/influencer/dashboard";
+    if (isBrand) return isOnboardingComplete ? "/brand/dashboard" : "/onboarding/brand";
+    if (isInfluencer) return isOnboardingComplete ? "/influencer/dashboard" : "/onboarding/influencer";
     return "/onboarding";
-  }, [isAdmin, isBrand, isInfluencer]);
+  }, [isAdmin, isBrand, isInfluencer, isOnboardingComplete]);
 
   return useMemo(
     () => ({
