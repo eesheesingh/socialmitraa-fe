@@ -71,3 +71,35 @@ export default defineConfig([
   },
 ])
 ```
+
+## How to push code to your GitHub account
+
+1. **Set your Git identity** (inside this folder):
+   ```bash
+   cd app
+   git config user.name "eesheesingh"
+   git config user.email "eesheesingh@users.noreply.github.com"
+   ```
+
+2. **Check the remote:**
+   ```bash
+   git remote -v
+   # should point to https://github.com/eesheesingh/socialmitraa-fe.git
+   ```
+
+3. **Stage, commit, and push:**
+   ```bash
+   git add .
+   git commit -m "your commit message"
+   git push origin main
+   ```
+
+4. **Authentication:** GitHub does not accept account passwords for `git push`.
+   You need a **Personal Access Token (PAT)**:
+   - Go to https://github.com/settings/tokens/new
+   - Select the **repo** scope
+   - Generate and copy the token
+   - When prompted for a password during `git push`, paste the PAT
+
+   The PAT is stored in `.env.local` as `GITHUB_TOKEN` for this project.
+   `.env.local` is gitignored, so it will not be committed.
