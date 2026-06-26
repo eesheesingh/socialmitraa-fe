@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Social Mitraa</title>
+    <script>
+      // SPA redirect: Convert path-based routes to hash routes
+      (function() {
+        var path = window.location.pathname;
+        var hash = window.location.hash;
+        // If we're on the root or already have a hash, do nothing
+        if (path === '/' || hash) return;
+        // Don't redirect asset files
+        if (path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)) return;
+        // Don't redirect API routes
+        if (path.startsWith('/api/')) return;
+        // Redirect /path to /#/path
+        var newUrl = window.location.origin + '/#' + path + window.location.search + window.location.hash;
+        window.location.replace(newUrl);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
