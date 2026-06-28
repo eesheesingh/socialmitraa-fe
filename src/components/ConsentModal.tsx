@@ -1,5 +1,6 @@
 import { useState, type KeyboardEvent, type ReactNode } from "react";
-import { trpc } from "@/providers/trpc";
+import { apiClient } from "@/lib/apiClient";
+import { useMutation } from "@tanstack/react-query";
 import { Shield, FileText, Cookie, Megaphone, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface ConsentModalProps {
@@ -90,11 +91,12 @@ export default function ConsentModal({ onAccepted, onClose }: ConsentModalProps)
   const [marketingChecked, setMarketingChecked] = useState(false);
   const [error, setError] = useState("");
 
-  const acceptMutation = trpc.consent.acceptConsent.useMutation({
+  const acceptMutation = useMutation({
+    mutationFn: () => apiClient.post<any>("/consents/accept", {}),
     onSuccess: () => {
       onAccepted();
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       setError(err.message);
     },
   });
@@ -105,13 +107,7 @@ export default function ConsentModal({ onAccepted, onClose }: ConsentModalProps)
       return;
     }
     setError("");
-    acceptMutation.mutate({
-      termsAccepted: termsChecked,
-      privacyAccepted: privacyChecked,
-      cookiesAccepted: cookiesChecked,
-      marketingAccepted: marketingChecked,
-      userAgent: navigator.userAgent,
-    });
+    acceptMutation.mutate();
   };
 
   const openInNewTab = (path: string) => {

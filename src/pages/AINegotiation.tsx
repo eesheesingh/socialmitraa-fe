@@ -1,36 +1,46 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { trpc } from "@/providers/trpc";
+import { apiClient } from "@/lib/apiClient";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import {
   ArrowLeft, MessageSquare, Send, Bot, User, CheckCircle, XCircle, Clock,
-  TrendingUp, Shield, Zap, IndianRupee, ChevronRight, AlertCircle,
+  TrendingUp, Shield, IndianRupee, ChevronRight,
   Sparkles, Handshake, RefreshCw,
 } from "lucide-react";
 
 type TabType = "active" | "completed" | "new";
 
 function NegotiationChat({ sessionId, onClose }: { sessionId: number; onClose: () => void }) {
-  const { user, isBrand, isInfluencer } = useAuth();
-  const [message, setMessage] = useState("");
+  const { isBrand, isInfluencer } = useAuth();
   const [counterRate, setCounterRate] = useState("");
   const [showCounter, setShowCounter] = useState(false);
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
 
-  const { data: session, isLoading } = trpc.negotiation.getSession.useQuery({ sessionId });
-
-  const brandAcceptMutation = trpc.negotiation.brandAccept.useMutation({
-    onSuccess: () => utils.negotiation.getSession.invalidate({ sessionId }),
+  const { data: session, isLoading } = useQuery({
+    queryKey: ["negotiations", sessionId],
+    queryFn: () => apiClient.get<any>(`/negotiations/${sessionId}`),
+    enabled: !!sessionId,
   });
-  const brandCounterMutation = trpc.negotiation.brandCounter.useMutation({
+
+  const brandAcceptMutation = useMutation({
+    mutationFn: ({ sessionId }: { sessionId: number }) =>
+      apiClient.post<any>(`/negotiations/${sessionId}/accept`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["negotiations", sessionId] }),
+  });
+  const brandCounterMutation = useMutation({
+    mutationFn: ({ sessionId, counterRate }: { sessionId: number; counterRate: number }) =>
+      apiClient.post<any>(`/negotiations/${sessionId}/counter`, { counterOffer: counterRate }),
     onSuccess: () => {
-      utils.negotiation.getSession.invalidate({ sessionId });
+      queryClient.invalidateQueries({ queryKey: ["negotiations", sessionId] });
       setShowCounter(false);
       setCounterRate("");
     },
   });
-  const creatorRespondMutation = trpc.negotiation.creatorRespond.useMutation({
-    onSuccess: () => utils.negotiation.getSession.invalidate({ sessionId }),
+  const creatorRespondMutation = useMutation({
+    mutationFn: ({ sessionId, action, counterRate }: { sessionId: number; action: string; counterRate?: number }) =>
+      apiClient.post<any>(`/negotiations/${sessionId}/respond`, { responseType: action, counterOffer: counterRate }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["negotiations", sessionId] }),
   });
 
   if (isLoading || !session) {
@@ -218,16 +228,18 @@ function NegotiationChat({ sessionId, onClose }: { sessionId: number; onClose: (
 
 export default function AINegotiation() {
   const navigate = useNavigate();
-  const { user, isBrand, isInfluencer } = useAuth();
+  const { isBrand, isInfluencer } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("active");
   const [selectedSession, setSelectedSession] = useState<number | null>(null);
 
-  const { data: sessions, isLoading } = trpc.negotiation.myNegotiations.useQuery(undefined, {
+  const { data: sessions, isLoading } = useQuery({
+    queryKey: ["negotiations", "mine"],
+    queryFn: () => apiClient.get<any>("/negotiations"),
     enabled: !!(isBrand || isInfluencer),
   });
 
-  const activeSessions = sessions?.filter(s => !["both_accepted", "rejected", "expired"].includes(s.status)) ?? [];
-  const completedSessions = sessions?.filter(s => ["both_accepted", "rejected", "expired"].includes(s.status)) ?? [];
+  const activeSessions = sessions?.filter((s: any) => !["both_accepted", "rejected", "expired"].includes(s.status)) ?? [];
+  const completedSessions = sessions?.filter((s: any) => ["both_accepted", "rejected", "expired"].includes(s.status)) ?? [];
 
   if (!isBrand && !isInfluencer) {
     return (
@@ -329,8 +341,7 @@ export default function AINegotiation() {
               </div>
             ) : (
               <div className="space-y-4">
-                {(activeTab === "active" ? activeSessions : completedSessions).map((session) => {
-                  const isDone = ["both_accepted", "rejected"].includes(session.status);
+                {(activeTab === "active" ? activeSessions : completedSessions).map((session: any) => {
                   const agreedRate = parseFloat(session.agreedRate?.toString() ?? session.aiSuggestedRate?.toString() ?? "0");
                   return (
                     <div

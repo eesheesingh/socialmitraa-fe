@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { authApi } from "@/lib/api";
-import { trpc } from "@/providers/trpc";
+import { apiClient } from "@/lib/apiClient";
 import {
   Building2, ArrowRight, ArrowLeft, Check, Brain,
   Megaphone, DollarSign, Users, Camera, Film, Image, BarChart3,
@@ -43,9 +43,17 @@ const CONTENT_TYPES = [
 export default function BrandOnboarding() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading, isBrand } = useAuth();
-  const updateProfile = trpc.brand.updateProfile.useMutation();
-  const createRequirement = trpc.match.createRequirement.useMutation();
-  const runMatching = trpc.match.runMatching.useMutation();
+  const updateProfile = useMutation({
+    mutationFn: (body: Record<string, unknown>) => apiClient.put("/brands/me", body),
+  });
+  const createRequirement = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      apiClient.post<{ requirementId: number }>("/matches/requirements", body),
+  });
+  const runMatching = useMutation({
+    mutationFn: ({ requirementId }: { requirementId: number }) =>
+      apiClient.post("/matches/run", { requirementId }),
+  });
   const completeOnboarding = useMutation({
     mutationFn: () => authApi.completeOnboarding(),
   });

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { trpc } from "@/providers/trpc";
+import { apiClient } from "@/lib/apiClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import {
   ArrowLeft, RefreshCw, Shield, TrendingUp, TrendingDown, Minus,
@@ -58,15 +59,18 @@ function ScoreGauge({ score }: { score: number }) {
 
 export default function CreatorCreditScore() {
   const navigate = useNavigate();
-  const { user, isInfluencer } = useAuth();
+  const { isInfluencer } = useAuth();
   const [isCalculating, setIsCalculating] = useState(false);
 
-  const { data: scoreData, isLoading, refetch } = trpc.mitraaScore.myScore.useQuery(undefined, {
+  const { data: scoreData, isLoading, refetch } = useQuery({
+    queryKey: ["mitraa-scores", "mine"],
+    queryFn: () => apiClient.get<any>("/mitraa-scores/me"),
     enabled: isInfluencer,
     retry: false,
   });
 
-  const calculateMutation = trpc.mitraaScore.calculate.useMutation({
+  const calculateMutation = useMutation({
+    mutationFn: () => apiClient.post<any>("/mitraa-scores/calculate", {}),
     onMutate: () => setIsCalculating(true),
     onSettled: () => {
       setIsCalculating(false);

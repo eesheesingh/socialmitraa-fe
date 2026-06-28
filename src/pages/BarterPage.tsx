@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
-import { trpc } from "@/providers/trpc";
+import { apiClient } from "@/lib/apiClient";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight, Gift, Camera, Star, CheckCircle2,
   Menu, X, LayoutDashboard, Package, Hash, Users,
@@ -32,7 +33,10 @@ export default function BarterPage() {
   const [scrolled, setScrolled] = useState(false);
   const sectionsRef = useRef<HTMLDivElement>(null);
 
-  const { data: openDeals } = trpc.barter.listOpenDeals.useQuery();
+  const { data: openDeals } = useQuery({
+    queryKey: ["barters", "open-deals"],
+    queryFn: () => apiClient.get("/barters/open-deals"),
+  });
 
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 50);

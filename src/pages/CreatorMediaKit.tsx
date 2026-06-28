@@ -1,25 +1,30 @@
 import { useParams, useNavigate } from "react-router";
-import { trpc } from "@/providers/trpc";
+import { useEffect } from "react";
+import { apiClient } from "@/lib/apiClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
-  Instagram, Users, Heart, MessageCircle, Eye, TrendingUp,
-  ShieldCheck, ShieldAlert, Shield, Star, Hash, Camera, Film, ImageIcon,
-  ArrowLeft, CheckCircle2, MapPin, Bookmark, Share2,
+  Instagram, Users, Heart, Eye, TrendingUp,
+  ShieldCheck, ShieldAlert, Shield, Star, Camera, Film, ImageIcon,
+  ArrowLeft, CheckCircle2, MapPin, Bookmark,
 } from "lucide-react";
 
 export default function CreatorMediaKit() {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
 
-  const { data: kit, isLoading } = trpc.mediaKit.getByUsername.useQuery(
-    { username: username ?? "" },
-    { enabled: !!username }
-  );
+  const { data: kit, isLoading } = useQuery<any>({
+    queryKey: ["media-kits", username],
+    queryFn: () => apiClient.get(`/media-kits/by-username/${username}`),
+    enabled: !!username,
+  });
 
-  const incrementView = trpc.mediaKit.incrementView.useMutation();
+  const incrementView = useMutation({
+    mutationFn: (username: string) => apiClient.post(`/media-kits/by-username/${username}/increment-view`, {}),
+  });
 
   // Track view on mount
   useEffect(() => {
-    if (username) incrementView.mutate({ username });
+    if (username) incrementView.mutate(username);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username]);
 
@@ -265,15 +270,13 @@ export default function CreatorMediaKit() {
       {/* Footer */}
       <footer className="py-8 border-t" style={{ background: "white", borderColor: "var(--border-light)" }}>
         <div className="section-container text-center">
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Powered by Social Mitraa — India's Creator-Brand Intelligence Platform</p>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Powered by Social Mitraa — India&apos;s Creator-Brand Intelligence Platform</p>
           <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>&copy; 2026 Social Mitraa. All rights reserved.</p>
         </div>
       </footer>
     </div>
   );
 }
-
-import { useEffect } from "react";
 
 function FakeBadge({ percentage, rating }: { percentage: number; rating: string }) {
   const colors: Record<string, { bg: string; text: string; border: string }> = {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
-import { trpc } from "@/providers/trpc";
+import { apiClient } from "@/lib/apiClient";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard, Megaphone, Users, Settings,
   Brain, Plus, Search, DollarSign,
@@ -37,18 +38,19 @@ export default function BrandDashboard() {
   const [consentChecked, setConsentChecked] = useState(false);
   const [showConsent, setShowConsent] = useState(false);
 
-  const { data: profile } = trpc.brand.getProfile.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: myCampaigns } = trpc.campaign.myCampaigns.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: allInfluencers } = trpc.influencer.list.useQuery({}, { enabled: isAuthenticated && !isLoading });
-  const { data: myRequirements } = trpc.match.myRequirements.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: myPayments } = trpc.payment.myPayments.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: myBarterDeals } = trpc.barter.myDeals.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: barterApplications } = trpc.barter.myDealApplications.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: consentStatus } = trpc.consent.checkStatus.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const createCampaign = trpc.campaign.create.useMutation();
-  const createBarterDeal = trpc.barter.createDeal.useMutation();
-  const updateBarterApp = trpc.barter.updateApplicationStatus.useMutation();
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
+
+  const { data: profile } = useQuery({ queryKey: ["brand", "profile"], queryFn: () => apiClient.get("/brands/me"), enabled: isAuthenticated && !isLoading });
+  const { data: myCampaigns } = useQuery({ queryKey: ["campaigns", "mine"], queryFn: () => apiClient.get("/campaigns/my-campaigns"), enabled: isAuthenticated && !isLoading });
+  const { data: allInfluencers } = useQuery({ queryKey: ["influencers"], queryFn: () => apiClient.get("/influencers"), enabled: isAuthenticated && !isLoading });
+  const { data: myRequirements } = useQuery({ queryKey: ["matches", "requirements", "mine"], queryFn: () => apiClient.get("/matches/my-requirements"), enabled: isAuthenticated && !isLoading });
+  const { data: myPayments } = useQuery({ queryKey: ["payments", "mine"], queryFn: () => apiClient.get("/payments/my-payments"), enabled: isAuthenticated && !isLoading });
+  const { data: myBarterDeals } = useQuery({ queryKey: ["barters", "deals", "mine"], queryFn: () => apiClient.get("/barters/deals"), enabled: isAuthenticated && !isLoading });
+  const { data: barterApplications } = useQuery({ queryKey: ["barters", "applications", "mine"], queryFn: () => apiClient.get("/barters/applications"), enabled: isAuthenticated && !isLoading });
+  const { data: consentStatus } = useQuery({ queryKey: ["consents", "status"], queryFn: () => apiClient.get("/consents/status"), enabled: isAuthenticated && !isLoading });
+  const createCampaign = useMutation({ mutationFn: (body) => apiClient.post("/campaigns", body) });
+  const createBarterDeal = useMutation({ mutationFn: (body) => apiClient.post("/barters/deals", body) });
+  const updateBarterApp = useMutation({ mutationFn: ({ applicationId, status }) => apiClient.patch(`/barters/applications/${applicationId}/status`, { status }) });
 
   const [campForm, setCampForm] = useState({ title: "", description: "", requirements: "", budget: "", niche: "", location: "", creatorCount: "1" });
   const [barterForm, setBarterForm] = useState({
@@ -59,12 +61,12 @@ export default function BrandDashboard() {
   });
 
   // ROI queries
-  const { data: allCampaignsRoi } = trpc.roi.allCampaignsRoi.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
+  const { data: allCampaignsRoi } = useQuery({ queryKey: ["rois", "campaigns"], queryFn: () => apiClient.get("/rois/campaigns"), enabled: isAuthenticated && !isLoading });
 
   // Affiliate queries
-  const { data: myAffiliatePrograms } = trpc.affiliate.myPrograms.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const createAffiliateProgram = trpc.affiliate.createProgram.useMutation();
-  const updateAffiliateProgram = trpc.affiliate.updateProgram.useMutation();
+  const { data: myAffiliatePrograms } = useQuery({ queryKey: ["affiliates", "programs", "mine"], queryFn: () => apiClient.get("/affiliates/programs/owned"), enabled: isAuthenticated && !isLoading });
+  const createAffiliateProgram = useMutation({ mutationFn: (body) => apiClient.post("/affiliates/programs", body) });
+  const updateAffiliateProgram = useMutation({ mutationFn: ({ programId, ...body }) => apiClient.put(`/affiliates/programs/${programId}/status`, body) });
   const [showAffiliateModal, setShowAffiliateModal] = useState(false);
   const [affiliateForm, setAffiliateForm] = useState({
     programName: "", description: "", commissionType: "percentage" as "percentage" | "fixed",
@@ -94,7 +96,7 @@ export default function BrandDashboard() {
       });
       setShowCreateModal(false);
       setCampForm({ title: "", description: "", requirements: "", budget: "", niche: "", location: "", creatorCount: "1" });
-      utils.campaign.myCampaigns.invalidate();
+      queryClient.invalidateQueries({ queryKey: ["campaigns", "mine"] });
     } catch (e) { console.error(e); }
   };
 
@@ -113,14 +115,14 @@ export default function BrandDashboard() {
       });
       setShowBarterModal(false);
       setBarterForm({ productName: "", productDescription: "", productValue: "", contentType: [], deliverables: "", creatorCategories: [], minFollowers: "", instructions: "", slotsTotal: "1" });
-      utils.barter.myDeals.invalidate();
+      queryClient.invalidateQueries({ queryKey: ["barters", "deals", "mine"] });
     } catch (e) { console.error(e); }
   };
 
   const handleUpdateBarterStatus = async (appId: number, status: "approved" | "rejected" | "shortlisted") => {
     try {
       await updateBarterApp.mutateAsync({ applicationId: appId, status });
-      utils.barter.myDealApplications.invalidate();
+      queryClient.invalidateQueries({ queryKey: ["barters", "applications", "mine"] });
     } catch (e) { console.error(e); }
   };
 
@@ -178,7 +180,7 @@ export default function BrandDashboard() {
         <ConsentModal
           onAccepted={() => {
             setShowConsent(false);
-            utils.consent.checkStatus.invalidate();
+            queryClient.invalidateQueries({ queryKey: ["consents", "status"] });
           }}
         />
       )}
@@ -545,7 +547,7 @@ export default function BrandDashboard() {
                       {prog.description && <p className="text-sm mt-1" style={{ color: "#64748B" }}>{prog.description}</p>}
                     </div>
                     {prog.status === "active" && (
-                      <button onClick={() => updateAffiliateProgram.mutateAsync({ programId: prog.id, status: "paused" }).then(() => utils.affiliate.myPrograms.invalidate())} className="dash-btn-secondary text-xs py-2 px-3">Pause</button>
+                      <button onClick={() => updateAffiliateProgram.mutateAsync({ programId: prog.id, status: "paused" }).then(() => queryClient.invalidateQueries({ queryKey: ["affiliates", "programs", "mine"] }))} className="dash-btn-secondary text-xs py-2 px-3">Pause</button>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2 mb-4">
@@ -717,7 +719,7 @@ export default function BrandDashboard() {
                 });
                 setShowAffiliateModal(false);
                 setAffiliateForm({ programName: "", description: "", commissionType: "percentage", commissionRate: "", commissionAmount: "", productName: "", productValue: "", productUrl: "", cookieDuration: "30", minFollowers: "0", creatorCategories: [] });
-                utils.affiliate.myPrograms.invalidate();
+                queryClient.invalidateQueries({ queryKey: ["affiliates", "programs", "mine"] });
               }} disabled={!affiliateForm.programName || createAffiliateProgram.isPending} className="w-full dash-btn-primary disabled:opacity-50">{createAffiliateProgram.isPending ? "Creating..." : "Create Program"}</button>
             </div>
           </div>

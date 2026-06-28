@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
-import { trpc } from "@/providers/trpc";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/apiClient";
 import DashboardLayout from "@/components/DashboardLayout";
 import { LoadingState } from "@/components/DashboardStates";
 import {
@@ -120,21 +121,21 @@ export default function AdminDashboard() {
   const [userRoleFilter, setUserRoleFilter] = useState("all");
   const [userPage, setUserPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
 
-  const { data: overview } = trpc.superAdmin.getOverview.useQuery(undefined, { enabled: isAuthenticated && !isLoading && isAdmin, refetchInterval: 30000 });
-  const { data: growth } = trpc.superAdmin.getMonthlyGrowth.useQuery(undefined, { enabled: isAuthenticated && !isLoading && isAdmin });
-  const { data: allUsers } = trpc.superAdmin.getAllUsers.useQuery({ role: userRoleFilter !== "all" ? userRoleFilter : undefined, page: userPage, limit: 50 }, { enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "users" });
-  const { data: allPayments } = trpc.superAdmin.getAllPayments.useQuery({}, { enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "payments" });
-  const { data: allCampaigns } = trpc.superAdmin.getAllCampaigns.useQuery({}, { enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "campaigns" });
-  const { data: subscriptions } = trpc.superAdmin.getAllSubscriptions.useQuery(undefined, { enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "subscriptions" });
-  const { data: revenueBreakdown } = trpc.superAdmin.getRevenueBreakdown.useQuery(undefined, { enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "revenue" });
-  const { data: topCreators } = trpc.superAdmin.getTopCreators.useQuery(undefined, { enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "overview" });
-  const { data: recentActivity } = trpc.superAdmin.getRecentActivity.useQuery(undefined, { enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "activity" });
+  const { data: overview } = useQuery<any>({ queryKey: ["admin", "overview"], queryFn: () => apiClient.get("/admin/overview"), enabled: isAuthenticated && !isLoading && isAdmin, refetchInterval: 30000 });
+  const { data: growth } = useQuery<any>({ queryKey: ["admin", "growth"], queryFn: () => apiClient.get("/admin/monthly-growth"), enabled: isAuthenticated && !isLoading && isAdmin });
+  const { data: allUsers } = useQuery<any>({ queryKey: ["admin", "users", { role: userRoleFilter !== "all" ? userRoleFilter : undefined, page: userPage, limit: 50 }], queryFn: () => apiClient.get(`/admin/users?role=${userRoleFilter !== "all" ? userRoleFilter : ""}&page=${userPage}&limit=50`), enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "users" });
+  const { data: allPayments } = useQuery<any>({ queryKey: ["admin", "payments"], queryFn: () => apiClient.get("/admin/payments"), enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "payments" });
+  const { data: allCampaigns } = useQuery<any>({ queryKey: ["admin", "campaigns"], queryFn: () => apiClient.get("/admin/campaigns"), enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "campaigns" });
+  const { data: subscriptions } = useQuery<any>({ queryKey: ["admin", "subscriptions"], queryFn: () => apiClient.get("/admin/subscriptions"), enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "subscriptions" });
+  const { data: revenueBreakdown } = useQuery<any>({ queryKey: ["admin", "revenue"], queryFn: () => apiClient.get("/admin/revenue-breakdown"), enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "revenue" });
+  const { data: topCreators } = useQuery<any>({ queryKey: ["admin", "top-creators"], queryFn: () => apiClient.get("/admin/top-creators"), enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "overview" });
+  const { data: recentActivity } = useQuery<any>({ queryKey: ["admin", "activity"], queryFn: () => apiClient.get("/admin/recent-activity"), enabled: isAuthenticated && !isLoading && isAdmin && activeTab === "activity" });
 
-  const updateRole = trpc.superAdmin.updateUserRole.useMutation({ onSuccess: () => { utils.superAdmin.getAllUsers.invalidate(); utils.superAdmin.getOverview.invalidate(); } });
-  const moderateCampaign = trpc.superAdmin.moderateCampaign.useMutation({ onSuccess: () => { utils.superAdmin.getAllCampaigns.invalidate(); utils.superAdmin.getOverview.invalidate(); } });
-  const forceDowngrade = trpc.superAdmin.forceDowngrade.useMutation({ onSuccess: () => { utils.superAdmin.getAllSubscriptions.invalidate(); utils.superAdmin.getOverview.invalidate(); } });
+  const updateRole = useMutation<any, Error, { userId: number; role: string }>({ mutationFn: ({ userId, role }) => apiClient.put(`/admin/users/${userId}/role`, { role }), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin", "users"] }); queryClient.invalidateQueries({ queryKey: ["admin", "overview"] }); } });
+  const moderateCampaign = useMutation<any, Error, { campaignId: number; action: "approve" | "reject" | "pause" }>({ mutationFn: ({ campaignId, action }) => apiClient.post(`/admin/campaigns/${campaignId}/moderate`, { action }), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin", "campaigns"] }); queryClient.invalidateQueries({ queryKey: ["admin", "overview"] }); } });
+  const forceDowngrade = useMutation<any, Error, { userId: number; userType: "brand" | "creator" }>({ mutationFn: ({ userId, userType }) => apiClient.post(`/admin/users/${userId}/downgrade`, { userType }), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin", "subscriptions"] }); queryClient.invalidateQueries({ queryKey: ["admin", "overview"] }); } });
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) navigate("/login");
@@ -217,7 +218,7 @@ export default function AdminDashboard() {
               </span>
             </div>
           )}
-          <button onClick={() => utils.superAdmin.getOverview.invalidate()} className="dash-btn-secondary">
+          <button onClick={() => queryClient.invalidateQueries({ queryKey: ["admin", "overview"] })} className="dash-btn-secondary">
             <RefreshCw size={14} />
           </button>
         </div>

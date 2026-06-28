@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useAuth } from "@/hooks/useAuth";
-import { trpc } from "@/providers/trpc";
+import { apiClient } from "@/lib/apiClient";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard, Megaphone, Wallet, Settings, Brain,
   CheckCircle2, Clock, DollarSign, Send, Gift, Package, Hash,
@@ -36,23 +37,87 @@ export default function InfluencerDashboard() {
   const [consentChecked, setConsentChecked] = useState(false);
   const [showConsent, setShowConsent] = useState(false);
 
-  const { data: profile } = trpc.influencer.getProfile.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: allCampaigns } = trpc.campaign.list.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: myApplications } = trpc.campaign.myApplications.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: aiMatches } = trpc.match.myMatches.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: myEarnings } = trpc.payment.myEarnings.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: barterDeals } = trpc.barter.browseDeals.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: myBarterApps } = trpc.barter.myApplications.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: consentStatus } = trpc.consent.checkStatus.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: browseAffiliatePrograms } = trpc.affiliate.browsePrograms.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const { data: myAffiliateLinks } = trpc.affiliate.myLinks.useQuery(undefined, { enabled: isAuthenticated && !isLoading });
-  const joinAffiliateProgram = trpc.affiliate.joinProgram.useMutation();
+  const enabled = isAuthenticated && !isLoading;
+  const { data: profile } = useQuery<any>({
+    queryKey: ["influencer", "profile"],
+    queryFn: () => apiClient.get("/influencers/me"),
+    enabled,
+  });
+  const { data: allCampaigns } = useQuery<any[]>({
+    queryKey: ["campaigns"],
+    queryFn: () => apiClient.get("/campaigns"),
+    enabled,
+  });
+  const { data: myApplications } = useQuery<any[]>({
+    queryKey: ["campaigns", "applications", "mine"],
+    queryFn: () => apiClient.get("/campaigns/my-applications"),
+    enabled,
+  });
+  const { data: aiMatches } = useQuery<any[]>({
+    queryKey: ["matches", "mine"],
+    queryFn: () => apiClient.get("/matches/my-matches"),
+    enabled,
+  });
+  const { data: myEarnings } = useQuery<any[]>({
+    queryKey: ["payments", "earnings"],
+    queryFn: () => apiClient.get("/payments/my-earnings"),
+    enabled,
+  });
+  const { data: barterDeals } = useQuery<any[]>({
+    queryKey: ["barters", "open-deals"],
+    queryFn: () => apiClient.get("/barters/open-deals"),
+    enabled,
+  });
+  const { data: myBarterApps } = useQuery<any[]>({
+    queryKey: ["barters", "applications", "mine"],
+    queryFn: () => apiClient.get("/barters/my-applications"),
+    enabled,
+  });
+  const { data: consentStatus } = useQuery<any>({
+    queryKey: ["consents", "status"],
+    queryFn: () => apiClient.get("/consents/status"),
+    enabled,
+  });
+  const { data: browseAffiliatePrograms } = useQuery<any[]>({
+    queryKey: ["affiliates", "programs", "browse"],
+    queryFn: () => apiClient.get("/affiliates/programs/browse"),
+    enabled,
+  });
+  const { data: myAffiliateLinks } = useQuery<any[]>({
+    queryKey: ["affiliates", "links", "mine"],
+    queryFn: () => apiClient.get("/affiliates/links/my"),
+    enabled,
+  });
+  const joinAffiliateProgram = useMutation({
+    mutationFn: ({ programId }: { programId: number }) =>
+      apiClient.post(`/affiliates/programs/${programId}/join`, {}),
+  });
   const [joinedProgramId, setJoinedProgramId] = useState<number | null>(null);
   const [copiedCode, setCopiedCode] = useState("");
-  const applyMut = trpc.campaign.submitApplication.useMutation();
-  const applyBarterMut = trpc.barter.submitApplication.useMutation();
-  const submitContentMut = trpc.barter.submitContent.useMutation();
-  const utils = trpc.useUtils();
+  const applyMut = useMutation({
+    mutationFn: ({
+      campaignId,
+      ...body
+    }: {
+      campaignId: number;
+      message: string;
+      proposedRate?: number;
+    }) => apiClient.post(`/campaigns/${campaignId}/applications`, body),
+  });
+  const applyBarterMut = useMutation({
+    mutationFn: (body: { dealId: number; message: string }) =>
+      apiClient.post("/barters/applications", body),
+  });
+  const submitContentMut = useMutation({
+    mutationFn: ({
+      applicationId,
+      ...body
+    }: {
+      applicationId: number;
+      contentLinks: string[];
+    }) => apiClient.post(`/barters/applications/${applicationId}/content`, body),
+  });
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (consentStatus && !consentStatus.hasAccepted && !consentChecked) {
@@ -71,7 +136,7 @@ export default function InfluencerDashboard() {
     try {
       await applyMut.mutateAsync({ campaignId: selectedCampaign, message: appMessage, proposedRate: parseFloat(appRate) || undefined });
       setSelectedCampaign(null); setAppMessage(""); setAppRate("");
-      utils.campaign.myApplications.invalidate();
+      queryClient.invalidateQueries({ queryKey: ["campaigns", "applications", "mine"] });
     } catch (e) { console.error(e); }
   };
 
@@ -80,7 +145,7 @@ export default function InfluencerDashboard() {
     try {
       await applyBarterMut.mutateAsync({ dealId: selectedBarterDeal, message: barterMessage });
       setSelectedBarterDeal(null); setBarterMessage("");
-      utils.barter.myApplications.invalidate();
+      queryClient.invalidateQueries({ queryKey: ["barters", "applications", "mine"] });
     } catch (e) { console.error(e); }
   };
 
@@ -122,7 +187,7 @@ export default function InfluencerDashboard() {
         <ConsentModal
           onAccepted={() => {
             setShowConsent(false);
-            utils.consent.checkStatus.invalidate();
+            queryClient.invalidateQueries({ queryKey: ["consents", "status"] });
           }}
         />
       )}
@@ -354,7 +419,7 @@ export default function InfluencerDashboard() {
                           const links = [prompt("Enter content link (Instagram Reel/Post URL):")];
                           if (links[0]) {
                             submitContentMut.mutateAsync({ applicationId: app.id, contentLinks: links as string[] })
-                              .then(() => utils.barter.myApplications.invalidate());
+                              .then(() => queryClient.invalidateQueries({ queryKey: ["barters", "applications", "mine"] }));
                           }
                         }} className="dash-btn-secondary text-xs py-2 px-3">
                           <ExternalLink className="w-3 h-3" /> Submit
@@ -489,7 +554,7 @@ export default function InfluencerDashboard() {
                       ) : (
                         <button onClick={() => {
                           joinAffiliateProgram.mutateAsync({ programId: prog.id })
-                            .then(() => { setJoinedProgramId(prog.id); utils.affiliate.myLinks.invalidate(); });
+                            .then(() => { setJoinedProgramId(prog.id); queryClient.invalidateQueries({ queryKey: ["affiliates", "links", "mine"] }); });
                         }} disabled={joinAffiliateProgram.isPending} className="w-full dash-btn-primary disabled:opacity-50">
                           {joinAffiliateProgram.isPending && joinedProgramId === prog.id ? "Joining..." : "Join Program"}
                         </button>

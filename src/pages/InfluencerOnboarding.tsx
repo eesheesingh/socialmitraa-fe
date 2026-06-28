@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { authApi } from "@/lib/api";
-import { trpc } from "@/providers/trpc";
+import { apiClient } from "@/lib/apiClient";
 import {
   ArrowRight, ArrowLeft, Check, Loader2,
   Instagram, Facebook, Youtube, AtSign, Phone, Mail, MapPin,
@@ -67,11 +67,17 @@ function AnalyticsCard({ icon, label, value, color }: { icon: React.ReactNode; l
 export default function InfluencerOnboarding() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading, isInfluencer } = useAuth();
-  const updateProfile = trpc.influencer.updateProfile.useMutation();
+  const updateProfile = useMutation({
+    mutationFn: (body: any) => apiClient.put<any>("/influencers/me", body),
+  });
   const completeOnboarding = useMutation({
     mutationFn: () => authApi.completeOnboarding(),
   });
-  const { refetch: analyzeProfile } = trpc.instagram.analyzeMyProfile.useQuery(undefined, { enabled: false });
+  const { refetch: analyzeProfile } = useQuery({
+    queryKey: ["instagrams", "analyze"],
+    queryFn: () => apiClient.post<any>("/instagrams/analyze-my-profile", {}),
+    enabled: false,
+  });
   const [step, setStep] = useState(0);
   const [fetchingAnalytics, setFetchingAnalytics] = useState(false);
   const [analyticsData, setAnalyticsData] = useState<any>(null);
